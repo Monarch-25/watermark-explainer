@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watermarking Large Language Models — An Interactive Explainer</title>
+<meta name="description" content="Interactive explainer for Kirchenbauer et al. (2023): hard and soft LLM watermarking with an abstract vocabulary, live z-tests, and detection statistics.">
+<style>
+  :root{
+    --paper:#faf8f3; --card:#ffffff; --ink:#1d1a16; --muted:#6f6a60;
+    --line:#e6dfd1; --line-soft:#efe9db;
+    --green-bg:#d9f2e2; --green-ink:#0d6b38; --green-line:#8fd0a8; --green-deep:#0a5229;
+    --red-bg:#fbe3e1; --red-ink:#a1231b; --red-line:#eaa9a3;
+    --blue-ink:#1e4fa3;
+    --accent:#0d6b38; --accent-soft:#e7f4ec;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:16.5px;line-height:1.68;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 26px}
+  .kicker{margin:44px 0 10px;font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;
+    color:var(--accent);text-transform:uppercase}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(34px,5vw,52px);
+    line-height:1.1;letter-spacing:-.01em;margin:0 0 14px}
+  .sub{font-family:var(--serif);font-size:clamp(17px,2.3vw,20.5px);color:#3d3830;
+    max-width:44em;line-height:1.58;margin:0 0 18px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;color:var(--muted);
+    font-size:13.5px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    padding:12px 0;margin-bottom:8px}
+  .meta a{color:var(--blue-ink);text-decoration:none;border-bottom:1px solid #b9cdf3}
+  .meta a:hover{border-bottom-color:var(--blue-ink)}
+  .pill{font-family:var(--mono);font-size:12px;background:#f1ece0;border:1px solid var(--line);
+    border-radius:999px;padding:2px 10px;color:#5b554a}
+  section{margin:48px 0}
+  h2{font-family:var(--serif);font-size:27px;margin:0 0 6px;letter-spacing:-.005em}
+  h2 .n{font-family:var(--mono);font-size:14px;color:var(--muted);margin-right:10px;vertical-align:middle}
+  h3.sub2{font-family:var(--serif);font-size:20px;margin:26px 0 4px}
+  .lede{color:#3d3830;max-width:46em}
+  p{max-width:46em}
+  li{max-width:46em}
+  /* glossary hover */
+  .gl{border-bottom:1px dotted #8a8478;cursor:help;text-decoration:none;color:inherit;
+    transition:background .12s}
+  .gl:hover,.gl:focus{background:#f3ecd9;border-radius:3px;outline:none}
+  .gl.f{font-style:italic}
+  #tip{position:fixed;z-index:60;max-width:330px;background:#211e19;color:#f4f1e9;
+    border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.55;
+    box-shadow:0 10px 32px rgba(20,15,5,.35);display:none;pointer-events:none}
+  #tip .tt{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:#9fe0bb;margin-bottom:5px}
+  #tip a{color:#bcd6ff;pointer-events:auto}
+  /* boxes */
+  .brief{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 24px;box-shadow:0 1px 2px rgba(60,50,30,.05)}
+  .brief li{margin:7px 0;max-width:52em}
+  .brief ul{margin:8px 0;padding-left:22px}
+  .toc{background:#f4efe3;border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 22px;font-size:14.5px}
+  .toc ol{margin:8px 0;padding-left:22px}
+  .toc li{margin:3px 0}
+  .toc a{color:var(--ink);text-decoration:none;border-bottom:1px dotted #8a8478}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+  @media(max-width:760px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 20px;box-shadow:0 1px 2px rgba(60,50,30,.05)}
+  .card h3{margin:0 0 8px;font-size:13.5px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+  .card h3 .tag{float:right;font-weight:400;text-transform:none;letter-spacing:0}
+  .card p{font-size:14.5px;color:#3d3830;margin:8px 0}
+  .algo{font-family:var(--mono);font-size:13px;background:#f7f3ea;border:1px solid var(--line-soft);
+    border-radius:10px;padding:12px 14px;line-height:1.9;overflow-x:auto;white-space:nowrap}
+  .g{color:var(--green-deep);font-weight:700}.r{color:var(--red-ink);font-weight:700}
+  .formula{font-family:var(--mono);font-size:15.5px;text-align:center;background:#f7f3ea;
+    border:1px solid var(--line-soft);border-radius:10px;padding:16px 12px;margin:14px 0;
+    overflow-x:auto;line-height:2.1;max-width:46em}
+  .formula .gl{border-bottom-color:var(--accent)}
+  figcaption,.cap{font-size:13px;color:var(--muted);margin-top:8px;max-width:52em}
+  .thm{background:var(--accent-soft);border:1px solid var(--green-line);border-radius:12px;
+    padding:14px 18px;font-size:14.5px;max-width:46em;margin:14px 0}
+  .thm b.t{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--green-deep);display:block;margin-bottom:6px}
+  .note{background:#fffbe9;border:1px solid #e8d9a8;border-radius:12px;padding:12px 16px;
+    font-size:14px;color:#5c4d1a;margin:14px 0;max-width:46em}
+  .refs{font-size:14px;color:#3d3830}
+  .refs li{margin:6px 0}
+  /* demonstration */
+  .demo{border:1px solid var(--line);border-radius:18px;background:var(--card);
+    box-shadow:0 6px 30px rgba(80,65,35,.07);overflow:hidden}
+  .demo-head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline;justify-content:space-between;
+    padding:20px 24px;border-bottom:1px solid var(--line);background:linear-gradient(#fff,#fdfbf6)}
+  .demo-head h2{margin:0;font-size:20px}
+  .demo-head .hint{font-size:13px;color:var(--muted)}
+  .controls{display:grid;grid-template-columns:250px 1fr 1fr;gap:0;border-bottom:1px solid var(--line)}
+  @media(max-width:900px){.controls{grid-template-columns:1fr}}
+  .ctl{padding:18px 22px;border-right:1px solid var(--line-soft)}
+  .ctl:last-child{border-right:0}
+  .ctl h4{margin:0 0 10px;font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted)}
+  .seg{display:flex;background:#f1ece0;border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+  .seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 4px;
+    font:600 13.5px var(--sans);color:#5b554a;cursor:pointer}
+  .seg button[aria-pressed="true"]{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);color:var(--ink)}
+  .seg button[data-m="soft"][aria-pressed="true"]{background:var(--green-bg);color:var(--green-deep)}
+  .seg button[data-m="hard"][aria-pressed="true"]{background:var(--red-bg);color:var(--red-ink)}
+  .srow{margin:12px 0 4px}
+  .srow label{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:2px}
+  .srow label output{font-family:var(--mono);font-weight:700}
+  input[type=range]{width:100%;accent-color:var(--accent);height:26px}
+  .srow.disabled{opacity:.38;pointer-events:none}
+  .btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  button.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;
+    font:600 13.5px var(--sans);cursor:pointer;color:var(--ink)}
+  button.btn:hover{border-color:#c9c0ab;background:#fdfbf4}
+  button.btn.primary{background:var(--green-deep);border-color:var(--green-deep);color:#fff}
+  button.btn.primary:hover{background:#0d6b38}
+  select{font:600 13.5px var(--sans);border:1px solid var(--line);border-radius:9px;
+    padding:6px 9px;background:#fff;color:var(--ink)}
+  .panel{padding:20px 24px;border-bottom:1px solid var(--line-soft)}
+  .panel:last-child{border-bottom:0}
+  .panel h3{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 4px}
+  .panel h3 .step{color:var(--accent)}
+  .panel .desc{font-size:13.5px;color:var(--muted);margin:0 0 14px;max-width:62em}
+  canvas.chart{width:100%;display:block;background:#fbf9f4;border:1px solid var(--line-soft);border-radius:12px}
+  .seq{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .tok{font-family:var(--mono);font-size:12.5px;font-weight:700;border-radius:8px;
+    padding:4px 8px;border:1px solid;cursor:pointer;transition:transform .08s}
+  .tok:hover{transform:translateY(-1px)}
+  .tok.g{background:var(--green-bg);border-color:var(--green-line);color:var(--green-deep)}
+  .tok.r{background:var(--red-bg);border-color:var(--red-line);color:var(--red-ink)}
+  .tok.cur{outline:2px solid var(--ink);outline-offset:1px}
+  .tok.future{opacity:.22;cursor:default}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);margin:10px 0 0}
+  .sw{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-1px}
+  .tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:12px 0}
+  @media(max-width:900px){.tiles{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}}
+  .tile{background:#fbf9f4;border:1px solid var(--line-soft);border-radius:12px;padding:10px 12px}
+  .tile .k{font-size:11px;font-family:var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+  .tile .v{font-family:var(--mono);font-size:21px;font-weight:700;margin-top:2px}
+  .tile .s{font-size:11.5px;color:var(--muted)}
+  .verdict{display:flex;align-items:center;gap:12px;margin:12px 0;padding:12px 16px;border-radius:12px;font-size:14.5px;border:1px solid}
+  .verdict.yes{background:var(--green-bg);border-color:var(--green-line);color:var(--green-deep)}
+  .verdict.no{background:#f4f1ea;border-color:var(--line);color:#5b554a}
+  .verdict strong{font-family:var(--mono);letter-spacing:.06em}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  table.mini{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px;margin-top:10px}
+  table.mini th{text-align:left;color:var(--muted);font-weight:600;padding:5px 8px;
+    border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  table.mini td{padding:5px 8px;border-bottom:1px solid var(--line-soft)}
+  table.mini tr:last-child td{border-bottom:0}
+  .matrixstrip{font-family:var(--mono);font-size:13.5px;background:#f7f3ea;border:1px solid var(--line-soft);
+    border-radius:10px;padding:12px 14px;margin:0 0 12px;line-height:2;overflow-x:auto}
+  .errgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+  @media(max-width:700px){.errgrid{grid-template-columns:repeat(2,1fr)}}
+  kbd{font-family:var(--mono);font-size:12px;background:#f1ece0;border:1px solid var(--line);
+    border-bottom-width:2px;border-radius:6px;padding:1px 7px}
+  footer{border-top:1px solid var(--line);margin-top:40px;padding:22px 0 60px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div id="tip" role="tooltip"></div>
+<div class="wrap">
+
+  <div class="kicker">Interactive explainer · Kirchenbauer et al., ICML 2023</div>
+  <h1>Watermarking large language models</h1>
+  <p class="sub">A watermark embeds a statistically detectable signal in generated text — invisible to readers,
+  recoverable without the model. This explainer reconstructs the construction of Kirchenbauer et&nbsp;al. (2023)
+  from first principles, using an <b>abstract vocabulary</b> (tokens T00…T23 carry no meaning) so that attention
+  stays on the mechanism rather than the prose. Hover any <span class="gl" data-g="glossary">dotted term</span>
+  or formula component for its definition.</p>
+  <div class="meta">
+    <span>Paper: <a href="https://arxiv.org/abs/2301.10226">arXiv:2301.10226</a> “A Watermark for Large Language Models”</span>
+    <span class="pill">γ = 0.25 · δ = 2.0 · z* = 4.0 (paper defaults)</span>
+    <span class="pill">single file · no dependencies · runs offline</span>
+  </div>
+
+  <section>
+    <div class="toc"><b>Contents</b>
+      <ol>
+        <li><a href="#motivation">Why watermark model output</a></li>
+        <li><a href="#background">Background: sampling and hypothesis testing</a></li>
+        <li><a href="#scheme">The watermarking scheme: hard and soft red lists</a></li>
+        <li><a href="#detection">Detection: the z-test</a></li>
+        <li><a href="#demo">Interactive demonstration</a></li>
+        <li><a href="#analysis">Analysis: sensitivity, quality, and parameters</a></li>
+        <li><a href="#attacks">Robustness, attacks, and private watermarking</a></li>
+        <li><a href="#limits">Limitations and scope of this demonstration</a></li>
+        <li><a href="#refs">References</a></li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="brief">
+      <b>In brief — the complete mechanism in three statements.</b>
+      <ul>
+        <li>Before generating each token, a <span class="gl" data-g="prf">hash</span> of the preceding token
+          partitions the <span class="gl" data-g="vocab">vocabulary</span> into a
+          <span class="gl" data-g="green">green list</span> (fraction
+          <span class="gl f" data-g="gamma">γ</span>) and a <span class="gl" data-g="red">red list</span> (fraction 1−γ).
+          Generator and detector derive identical partitions independently — detection requires neither the model weights nor API access.</li>
+        <li>Generation is biased toward green: the <b>hard</b> rule (Algorithm&nbsp;1) samples exclusively from green;
+          the <b>soft</b> rule (Algorithm&nbsp;2) adds a <span class="gl f" data-g="delta">δ</span> bias to green
+          <span class="gl" data-g="logits">logits</span> before <span class="gl" data-g="sampling">sampling</span>.</li>
+        <li>Detection counts green tokens <span class="gl f" data-g="sg">|s|<sub>G</sub></span> and applies a
+          <span class="gl" data-g="ztest">one-proportion z-test</span>. Unwatermarked text scores near chance (γT);
+          watermarked text scores far above. The paper rejects at
+          <span class="gl f" data-g="zstar">z &gt; 4</span>, a one-sided
+          <span class="gl" data-g="fpr">false-positive rate</span> of ≈&nbsp;3×10<sup>−5</sup>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="motivation">
+    <h2><span class="n">01</span>Why watermark model output</h2>
+    <p class="lede">As language models produce text at scale — articles, reviews, coursework, social-media content —
+    the ability to distinguish machine-generated from human-written text becomes infrastructure. Watermarking addresses
+    this by embedding a signal <i>at generation time</i> that is imperceptible to readers yet algorithmically recoverable
+    from short spans of text.</p>
+    <p>Kirchenbauer et&nbsp;al. specify five requirements for a practical scheme: detection without model access;
+    no retraining; detectability from a contiguous fragment; resistance to removal without substantial rewriting; and a
+    rigorous, interpretable confidence measure. The construction below satisfies all five, and its most consequential
+    property is the first — because the detector needs only the
+    <span class="gl" data-g="prf">hash function</span> and tokenizer, detection can be open-sourced even when the model
+    itself remains proprietary.</p>
+    <p>This differs fundamentally from <i>post-hoc</i> detection (classifiers trained to spot synthetic text), which
+    degrades as models improve and offers no calibrated confidence. A watermark is a commitment made during sampling,
+    and its statistics are exact under a stated <span class="gl" data-g="h0">null hypothesis</span> — which is why the
+    resulting <span class="gl" data-g="pvalue">p-values</span> can be taken literally.</p>
+  </section>
+
+  <section id="background">
+    <h2><span class="n">02</span>Background</h2>
+    <h3 class="sub2">2.1 &nbsp;Language models as distributions over tokens</h3>
+    <p>A language model operates over a fixed <span class="gl" data-g="vocab">vocabulary</span> 𝒱 of tokens
+    (words or word fragments; typically |𝒱| ≥ 50,000). Given a prompt and the tokens generated so far,
+    the model's final layer emits a vector of <span class="gl" data-g="logits">logits</span>
+    ℓ<sup>(t)</sup> ∈ ℝ<sup>|𝒱|</sup> — one unnormalized score per vocabulary item. These pass through the
+    <span class="gl" data-g="softmax">softmax</span> operator to form a probability distribution:</p>
+    <div class="formula">p<sub>k</sub><sup>(t)</sup>&nbsp;=&nbsp;<span class="gl" data-g="softmax">exp(ℓ<sub>k</sub><sup>(t)</sup>)&thinsp;/&thinsp;∑<sub>i</sub> exp(ℓ<sub>i</sub><sup>(t)</sup>)</span></div>
+    <p>The next token s<sup>(t)</sup> is then drawn from this distribution, most commonly by
+    <span class="gl" data-g="sampling">multinomial sampling</span> (each token with its stated probability),
+    <span class="gl" data-g="greedy">greedy decoding</span> (always the argmax), or
+    <span class="gl" data-g="beam">beam search</span> (tracking several candidate sequences and keeping the
+    highest-scoring). Watermarking intervenes precisely at this step: it perturbs the logits or restricts the
+    sampling pool <i>before</i> the draw, leaving everything upstream untouched.</p>
+    <p>A recurring concept is the <span class="gl" data-g="entropy">entropy</span> of the predictive distribution.
+    When probability mass concentrates on a single token (low entropy — memorized facts, boilerplate, formatting),
+    the output is nearly determined and there is no freedom to embed signal without visible distortion. When mass
+    spreads across many plausible tokens (high entropy — open-ended phrasing), the choice among them is essentially
+    free, and a watermark can hide in that freedom. The soft watermark of §3.3 exploits exactly this asymmetry.</p>
+    <h3 class="sub2">2.2 &nbsp;Hypothesis testing in one paragraph</h3>
+    <p>Detection is framed as a <span class="gl" data-g="h0">null-hypothesis significance test</span>.
+    The null hypothesis H<sub>0</sub> states that the examined text was produced <i>with no knowledge of the green
+    lists</i> — i.e., by a human or an unwatermarked model. Under H<sub>0</sub>, each token lands on the green list
+    with probability γ independently, so the green count follows a
+    <span class="gl" data-g="binomial">binomial distribution</span>,
+    <span class="gl f" data-g="sg">|s|<sub>G</sub></span> ∼ Binomial(T,&nbsp;γ), with mean γT and variance
+    Tγ(1−γ). For the sequence lengths of interest, the
+    <span class="gl" data-g="clt">central limit theorem</span> justifies the normal approximation behind the
+    <span class="gl" data-g="ztest">z-statistic</span>. Observing a z far from zero therefore constitutes evidence
+    against H<sub>0</sub>, quantified by the <span class="gl" data-g="pvalue">p-value</span>: the probability that
+    innocent text would look this incriminating by chance. Two error rates govern the tradeoff:
+    <span class="gl" data-g="fpr">type-I errors</span> (false accusations, controlled by the threshold) and
+    <span class="gl" data-g="fnr">type-II errors</span> (missed watermarks, driven by text entropy and length).</p>
+  </section>
+
+  <section id="scheme">
+    <h2><span class="n">03</span>The watermarking scheme</h2>
+    <h3 class="sub2">3.1 &nbsp;Randomized partitioning from hashed context</h3>
+    <p>At step t, both generator and detector compute <span class="gl" data-g="prf">seed&nbsp;=&nbsp;hash(s<sup>(t−1)</sup>)</span>
+    and use it to pseudo-randomly split 𝒱 into a green list G of size γ|𝒱| and a red list R of size (1−γ)|𝒱|.
+    Seeding on the <i>preceding token</i> (rather than a global seed) is what makes the partition reproducible without
+    transmitting any side information: the detector replays the same hashes over the text it examines. The paper's
+    reference implementation generalizes this to a window of h preceding tokens; h&nbsp;=&nbsp;1 here keeps the mechanism
+    legible while preserving all essential statistics.</p>
+    <div class="cols">
+      <div class="card">
+        <h3>Hard red list <span class="tag r">Algorithm 1 · δ → ∞</span></h3>
+        <div class="algo">seed = hash(prev token)<br><span class="g">G</span>, <span class="r">R</span> = split(vocab, seed, γ)<br>sample s<sup>(t)</sup> from <span class="g">G</span> <b>only</b></div>
+        <p>Red-list tokens are assigned zero probability. The signal is maximal — every token is green — and any
+        sequence of 16+ tokens at γ&nbsp;=&nbsp;½ is conclusive. The cost is quality: on low-entropy passages the rule
+        forbids the only correct continuation (the paper's example: “Obama” following “Barack”), forcing the model into
+        visibly wrong or stilted output.</p>
+      </div>
+      <div class="card">
+        <h3>Soft red list <span class="tag g">Algorithm 2 · δ ≈ 2</span></h3>
+        <div class="algo">seed = hash(prev token)<br><span class="g">G</span>, <span class="r">R</span> = split(vocab, seed, γ)<br>ℓ̂ = ℓ + δ·𝟙<sub class="g">G</sub> → softmax → sample</div>
+        <p>A constant bias δ is added to green logits before the softmax. Dominant logits survive regardless of color;
+        tightly contested races tip green. The watermark thus concentrates itself exactly where it is cheapest —
+        high-entropy positions — and the paper's default δ&nbsp;=&nbsp;2.0 keeps the
+        <span class="gl" data-g="perplexity">perplexity</span> cost near negligible while remaining detectable within
+        roughly 200 tokens.</p>
+      </div>
+    </div>
+    <h3 class="sub2">3.2 &nbsp;Why the soft rule adapts to entropy</h3>
+    <p>Consider a low-entropy step where one token holds nearly all probability mass: its logit exceeds the rest by a
+    large margin, and adding δ to some <i>other</i> token's logit cannot close the gap — the argmax, and usually the
+    sample, is unchanged. At a high-entropy step with many comparable logits, the same δ reshuffles the ranking and the
+    draw lands green with substantially elevated probability. No explicit entropy measurement is required; the arithmetic
+    of the softmax implements the adaptivity. Panel&nbsp;A of the demonstration makes this concrete: switch the entropy
+    regime between “low” and “high” and observe how the post-watermark distribution responds.</p>
+  </section>
+
+  <section id="detection">
+    <h2><span class="n">04</span>Detection: the z-test</h2>
+    <p class="lede">The detector replays the hashes, reconstructs every green list, counts green tokens, and scores:</p>
+    <div class="formula"><span class="gl" data-g="ztest">z</span>&nbsp;=&nbsp;(<span class="gl f" data-g="sg">|s|<sub>G</sub></span>&nbsp;−&nbsp;<span class="gl f" data-g="gamma">γ</span><span class="gl f" data-g="T">T</span>)&thinsp;/&thinsp;√(<span class="gl f" data-g="T">T</span><span class="gl f" data-g="gamma">γ</span>(1−<span class="gl f" data-g="gamma">γ</span>))&emsp;·&emsp;reject <span class="gl" data-g="h0">H<sub>0</sub></span> if <span class="gl f" data-g="ztest">z</span>&nbsp;&gt;&nbsp;<span class="gl f" data-g="zstar">z*</span></div>
+    <p class="cap">Hover each component for its definition. Under H<sub>0</sub>, z follows approximately a standard
+    normal distribution; the denominator is exactly the binomial standard deviation.</p>
+    <p><b>Worked example</b> (paper, Figure&nbsp;1; γ&nbsp;=&nbsp;0.25, δ&nbsp;=&nbsp;2). A watermarked passage contains
+    T&nbsp;=&nbsp;36 scored tokens. Chance alone predicts γT&nbsp;=&nbsp;9 greens, yet 28 are observed:
+    z&nbsp;=&nbsp;(28−9)/√(36·0.25·0.75)&nbsp;≈&nbsp;7.3, corresponding to p&nbsp;≈&nbsp;6×10<sup>−14</sup> — a one-in-ten-trillion
+    coincidence under the null. This is the sense in which detection carries “interpretable p-values”: the number means
+    what it says.</p>
+    <p><b>Threshold selection.</b> The paper standard z*&nbsp;=&nbsp;4 admits a one-sided false-positive rate of
+    ≈&nbsp;3×10<sup>−5</sup> (roughly one false accusation per 30,000 innocent passages). Raising z* buys near-immunity
+    to false accusations at the price of missed short or low-entropy watermarked passages; lowering it does the reverse.
+    Panel&nbsp;C lets you move z* and watch both sides of this tradeoff shift in real time.</p>
+  </section>
+
+  <section id="demo">
+    <h2><span class="n">05</span>Interactive demonstration</h2>
+    <p class="lede">What follows is a faithful simulation of Algorithms&nbsp;1–2 and the §4 detector, executed entirely
+    in this page. The vocabulary is abstract (T00…T23 denote distinct tokens with no semantics) and the “language model”
+    is a controlled distribution generator whose concentration you set with the entropy control — flat (many plausible
+    continuations) or peaked (near-deterministic). Every formula from §§3–4 is evaluated live: the hashed partitions,
+    the +δ shift, the green counts, the z-statistic, and the p-value. Suggested protocol: press
+    <b>Play</b>, then vary δ and the entropy regime and observe which of the two moves the detector.</p>
+
+    <div class="demo">
+      <div class="demo-head">
+        <h2>Watermark demonstration</h2>
+        <span class="hint">abstract vocabulary · seeded RNG · detector observes tokens only, never logits</span>
+      </div>
+
+      <div class="controls">
+        <div class="ctl">
+          <h4>Watermark mode</h4>
+          <div class="seg" role="group" aria-label="Watermark mode">
+            <button data-m="off">Off</button>
+            <button data-m="soft" aria-pressed="true">Soft</button>
+            <button data-m="hard">Hard</button>
+          </div>
+          <div class="btnrow">
+            <button class="btn primary" id="play">▶ Play</button>
+            <button class="btn" id="step">Step +1</button>
+            <button class="btn" id="regen" title="Regenerate with current settings">↻ Regenerate</button>
+          </div>
+          <div class="srow">
+            <label>Seed <output id="o-seed">7</output></label>
+            <div class="btnrow" style="margin-top:2px">
+              <button class="btn" id="seed-dec">−</button>
+              <button class="btn" id="seed-inc">+</button>
+              <button class="btn" id="seed-rnd">random</button>
+            </div>
+          </div>
+        </div>
+        <div class="ctl">
+          <h4>Watermark parameters</h4>
+          <div class="srow"><label>Green fraction γ <output id="o-gamma">0.25</output></label>
+            <input type="range" id="in-gamma" min="0.05" max="0.6" step="0.05" value="0.25" aria-label="Green list fraction gamma"></div>
+          <div class="srow" id="row-delta"><label>Bias strength δ <output id="o-delta">2.0</output></label>
+            <input type="range" id="in-delta" min="0" max="5" step="0.25" value="2" aria-label="Logit bias delta"></div>
+          <div class="srow"><label>Detection threshold z* <output id="o-zstar">4.0</output></label>
+            <input type="range" id="in-zstar" min="1" max="8" step="0.5" value="4" aria-label="Detection threshold"></div>
+        </div>
+        <div class="ctl">
+          <h4>Generative distribution</h4>
+          <div class="srow"><label>Sequence length T <output id="o-T">80</output></label>
+            <input type="range" id="in-T" min="20" max="200" step="10" value="80" aria-label="Sequence length"></div>
+          <div class="srow" style="display:flex;gap:10px;align-items:center;margin-top:12px">
+            <label for="in-V" style="font-size:13.5px">Vocabulary |V|</label>
+            <select id="in-V"><option>12</option><option selected>24</option><option>48</option></select>
+            <label for="in-ent" style="font-size:13.5px">Entropy</label>
+            <select id="in-ent"><option value="high">high</option><option value="mixed" selected>mixed</option><option value="low">low</option></select>
+          </div>
+          <p class="cap" style="margin-bottom:0"><b>Entropy</b> controls the concentration of the predictive
+          distribution. “Low” reproduces the memorized-text regime of §1.2: a single dominant token per step, where
+          the soft rule correctly declines to intervene — and where detection correspondingly attenuates.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><span class="step">A ·</span> Next-token inspection — the +δ adjustment as a matrix operation</h3>
+        <p class="desc">Select any step (click a token below, or drag the slider). Bars show the post-watermark sampling
+        distribution; tick marks show the pre-watermark probabilities. Green and red denote the hashed lists applicable
+        to <i>this</i> step only. The panel's Torch equivalent is <kbd>wm_logits = logits + mask * delta</kbd>.</p>
+        <div class="matrixstrip" id="matrixstrip">ℓ̂ = ℓ + δ·𝟙<sub>G</sub>&nbsp;&nbsp;→&nbsp;&nbsp;p̂ = softmax(ℓ̂)</div>
+        <div class="srow"><label>Inspected step t <output id="o-cursor">1 / 80</output></label>
+          <input type="range" id="in-cursor" min="1" max="80" step="1" value="1" aria-label="Inspected step"></div>
+        <canvas class="chart" id="ch-logits" data-h="210"></canvas>
+        <div class="grid2">
+          <div>
+            <table class="mini" id="tbl-top"><thead><tr><th>token</th><th>list</th><th>p base</th><th>p watermarked</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div>
+            <table class="mini" id="tbl-step"><tbody></tbody></table>
+            <p class="cap" id="spike-note"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><span class="step">B ·</span> Generated sequence — colors are contextual</h3>
+        <p class="desc">Each token is colored by whether it fell on the green list seeded by its <i>predecessor</i> —
+        precisely the quantity the detector reconstructs. Hard mode yields uniformly green sequences; unwatermarked
+        sequences fluctuate around the rate γ; soft mode lies between, with density governed by δ and entropy.</p>
+        <div class="seq" id="seq"></div>
+        <div class="legend">
+          <span><span class="sw" style="background:var(--green-bg);border:1px solid var(--green-line)"></span>green at sampling time</span>
+          <span><span class="sw" style="background:var(--red-bg);border:1px solid var(--red-line)"></span>red at sampling time</span>
+          <span>select any token to inspect it in panel A</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><span class="step">C ·</span> Detection — the z-test evaluated live</h3>
+        <p class="desc">The detector re-derives every green list from token hashes — it never observes logits — then
+        counts, scores, and judges. Adjusting z* traces the false-positive / false-negative frontier directly.</p>
+        <div class="tiles">
+          <div class="tile"><div class="k">tokens T</div><div class="v" id="t-T">–</div><div class="s">revealed</div></div>
+          <div class="tile"><div class="k">greens |s|G</div><div class="v" id="t-G">–</div><div class="s" id="t-Gexp">expected –</div></div>
+          <div class="tile"><div class="k">green rate</div><div class="v" id="t-rate">–</div><div class="s" id="t-rateexp">baseline –</div></div>
+          <div class="tile"><div class="k">z-score</div><div class="v" id="t-z">–</div><div class="s">threshold z*</div></div>
+          <div class="tile"><div class="k">p-value</div><div class="v" id="t-p" style="font-size:16px">–</div><div class="s">one-sided 1−Φ(z)</div></div>
+          <div class="tile"><div class="k">mean TV distance</div><div class="v" id="t-tv" style="font-size:16px">–</div><div class="s">‖p̂−p‖ per step</div></div>
+        </div>
+        <div class="verdict no" id="verdict"><strong id="verdict-word">NOT DETECTED</strong><span id="verdict-why"></span></div>
+        <div class="grid2">
+          <div><canvas class="chart" id="ch-traj" data-h="200"></canvas>
+            <p class="cap"><b>Evidence accumulates with √T.</b> Watermarked trajectories drift upward; unwatermarked
+            trajectories diffuse around zero. Short passages cannot support confident verdicts — a property of the
+            statistics, not of the implementation.</p></div>
+          <div><canvas class="chart" id="ch-null" data-h="200"></canvas>
+            <p class="cap"><b>Position under the null.</b> Curve: the z-distribution of unwatermarked text, 𝒩(0,1).
+            Shaded region: rejection at z &gt; z*. Needle: the current sequence.</p></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><span class="step">D ·</span> Sampling distribution — 400 independent generations per condition</h3>
+        <p class="desc">Monte-Carlo over complete generations under the current settings. “Unwatermarked” uses the
+        identical generative distribution with the watermark disabled, isolating the watermark's contribution. Reported
+        rates are empirical frequencies at the active z*.</p>
+        <div class="btnrow" style="margin:0 0 12px"><button class="btn" id="run-trials">↻ Re-run 400 trials</button>
+        <span class="cap" id="trials-note" style="margin:6px 0 0"></span></div>
+        <canvas class="chart" id="ch-hist" data-h="220"></canvas>
+        <div class="errgrid">
+          <div class="tile"><div class="k">false-positive @ z*</div><div class="v" id="t-fpr">–</div><div class="s">unwatermarked flagged</div></div>
+          <div class="tile"><div class="k">true-positive @ z*</div><div class="v" id="t-tpr">–</div><div class="s">watermarked caught</div></div>
+          <div class="tile"><div class="k">mean green rate (wm)</div><div class="v" id="t-wmrate">–</div><div class="s">vs baseline γ</div></div>
+          <div class="tile"><div class="k">mean TV distance</div><div class="v" id="t-avgtv" style="font-size:16px">–</div><div class="s">distribution shift</div></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="analysis">
+    <h2><span class="n">06</span>Analysis: sensitivity, quality, and parameters</h2>
+    <h3 class="sub2">6.1 &nbsp;Sensitivity and spike entropy</h3>
+    <p>Detection power is not a property of the watermark alone — it depends on how much freedom the text afforded.
+    The paper formalizes “freedom” as <span class="gl" data-g="spike">spike entropy</span>,
+    S(p,&nbsp;z)&nbsp;=&nbsp;∑<sub>k</sub>&nbsp;p<sub>k</sub>/(1+zp<sub>k</sub>): a soft count of the tokens holding
+    non-trivial mass. Theorem&nbsp;4.2 converts average spike entropy S* over a passage into a lower bound on the
+    expected green count:</p>
+    <div class="thm"><b class="t">Theorem 4.2 (informal) — Kirchenbauer et al.</b>
+    With α&nbsp;=&nbsp;e<sup>δ</sup>, the expected number of green tokens satisfies
+    𝔼|s|<sub>G</sub> ≥ [γαT&nbsp;/&nbsp;(1+(α−1)γ)]·S*. High-entropy passages (S* near 1) approach the
+    fully-shifted rate; low-entropy passages guarantee little — correctly, since there was nothing to randomize.
+    Panel&nbsp;A reports per-step spike entropy so this bound can be read off the distributions directly.</div>
+    <p>Empirically (§4.1, OPT-1.3B, T&nbsp;=&nbsp;200, γ&nbsp;=&nbsp;0.5, δ&nbsp;=&nbsp;2): mean spike entropy 0.807,
+    mean green count 159.5 against a theoretical floor of 142.2, and 98.4% sensitivity at z*&nbsp;=&nbsp;4 under
+    multinomial sampling (99.6% with 4-way beam search, which “irons in” green-dense candidates). The residual misses
+    concentrate in memorized or templated passages — the failure mode reproduced here by the “low” entropy regime.</p>
+    <h3 class="sub2">6.2 &nbsp;Effect on text quality</h3>
+    <p>Quality is measured by <span class="gl" data-g="perplexity">perplexity</span> under a larger reference model.
+    Theorem&nbsp;4.3 bounds the expected perplexity increase uniformly: at the extremes it vanishes (uniform
+    distributions sample uniformly regardless of coloring; degenerate distributions are unaffected by δ), with the
+    residual cost concentrated at moderate entropy. The demonstration's mean
+    <span class="gl" data-g="tv">total-variation distance</span> plays the analogous role for the abstract
+    distributions: it quantifies, per step, how far the sampler moved. A robust finding, visible in the paper's
+    Figure&nbsp;2 and reproducible above: raising δ past ≈&nbsp;2 increases distortion steadily while detection
+    saturates — the signature of entropy-limited headroom.</p>
+    <h3 class="sub2">6.3 &nbsp;Parameter guidance</h3>
+    <p><b>γ (green fraction).</b> Smaller γ lowers the chance baseline, making a given elevation <i>more</i>
+    surprising — the paper finds γ&nbsp;=&nbsp;0.1–0.25 slightly Pareto-optimal for the strength–quality frontier,
+    though anything in 0.25–0.5 behaves reasonably. Verify this: set γ&nbsp;=&nbsp;0.1 with δ&nbsp;=&nbsp;2 and compare
+    detection against γ&nbsp;=&nbsp;0.5 at matched distortion.</p>
+    <p><b>δ (bias strength).</b> The operating band is roughly [0.5,&nbsp;2.0] for capable base models; overconfident
+    (e.g., instruction-tuned) distributions may warrant larger values. δ&nbsp;→&nbsp;∞ recovers the hard rule and its
+    quality penalties — instructive to inspect, inadvisable to deploy.</p>
+    <p><b>T and z*.</b> Longer passages and lower thresholds both raise power at the cost of latency and false
+    accusations respectively. The paper's z*&nbsp;=&nbsp;4 with T&nbsp;≈&nbsp;200 is a calibrated default, not a law;
+    short-form settings (a synthetic reply of 30 tokens) demand either stronger δ or acceptance of weaker guarantees.</p>
+  </section>
+
+  <section id="attacks">
+    <h2><span class="n">07</span>Robustness, attacks, and private watermarking</h2>
+    <p class="lede">The z-test formulation already buys substantial tamper-resistance: because greens are counted over
+    the whole passage, an adversary must rewrite roughly a quarter of the tokens to drag z below threshold — and each
+    edited token disturbs the hash chain of its successor, compounding the attacker's burden (§2, “How hard is it to
+    remove the watermark?”).</p>
+    <p>The paper catalogs three attack families. <b>Insertion and deletion</b> add or remove tokens (wasting generation
+    budget and narrowing effective context). <b>Substitution</b> — manual paraphrasing or automated rewriting with a
+    weaker public model — trades watermark strength against fluency, and is bounded by a simple economic argument: an
+    attacker possessing an equally strong paraphraser has little need for the watermarked API. <b>Generative
+    attacks</b> (emoji interleaving, homoglyph substitution, instructed character swaps) abuse in-context learning to
+    perturb tokenization predictably; these are the strongest known tools, and the recommended mitigations are
+    canonicalization before hashing and moderate hash windows (h&nbsp;=&nbsp;2–4).</p>
+    <p>Finally, the scheme supports a <b>private mode</b>: the partition seed derives from a keyed
+    <span class="gl" data-g="prf">pseudorandom function</span> whose key is held server-side, with detection served
+    behind a rate-limited API. Brute-force recovery of the lists then requires |𝒱|<sup>1+h</sup> queries — infeasible
+    for h&nbsp;≫&nbsp;1 — at the cost of trusting the API operator. Algorithm&nbsp;3 of the paper further removes
+    “attack amplification” (where one edit randomizes many downstream lists) via a self-hash construction.</p>
+  </section>
+
+  <section id="limits">
+    <h2><span class="n">08</span>Limitations and scope of this demonstration</h2>
+    <p>Three deliberate simplifications bound what the demonstration shows. First, the generative distributions are
+    synthetic Gaussians, not a trained model: entropy regimes are stipulated rather than emergent, so absolute quality
+    claims (perplexity, fluency) cannot transfer — only the <i>mechanism</i> (partitioning, shifting, scoring) is exact.
+    Second, the hash window is h&nbsp;=&nbsp;1 with a non-cryptographic mixer, whereas deployments use keyed PRFs over
+    wider windows with repeated-n-gram handling. Third, adversarial dynamics (paraphrasing, tokenization attacks,
+    multiple-key privacy) are analyzed in prose, not simulated. None of these affect the statistical core: the z-test
+    evaluated here is term-for-term the paper's Equation&nbsp;3, and its calibration can be checked independently via
+    the companion script (<kbd>conda activate torch</kbd>, then <kbd>python watermark_torch.py</kbd>).</p>
+    <div class="note"><b>On the fundamental limit (§1.2).</b> Low-entropy text — memorized facts, canonical code,
+    rigid templates — is barely watermarkable <i>in principle</i>: when model and human must emit identical tokens,
+    no statistical test can separate them. The soft rule's virtue is graceful behavior in exactly this regime: it
+    declines to distort what it cannot mark, provided such passages are embedded in enough total entropy elsewhere.</div>
+  </section>
+
+  <section id="refs">
+    <h2><span class="n">09</span>References</h2>
+    <ol class="refs">
+      <li>Kirchenbauer, Geiping, Wen, Katz, Miers &amp; Goldstein. “A Watermark for Large Language Models.”
+        ICML 2023. <a href="https://arxiv.org/abs/2301.10226">arXiv:2301.10226</a>.
+        Code: <a href="https://github.com/jwkirchenbauer/lm-watermarking">jwkirchenbauer/lm-watermarking</a>.</li>
+      <li>Zhang et&nbsp;al. “OPT: Open Pre-trained Transformer Language Models.” 2022. (Evaluation model family.)</li>
+      <li>Raffel et&nbsp;al. “Exploring the Limits of Transfer Learning with T5.” 2019. (C4 evaluation prompts.)</li>
+      <li>Goodside. “Emoji attack” on LLM watermarking, 2023. (Generative attack discussion, §7 of the paper.)</li>
+    </ol>
+  </section>
+
+  <footer>
+    Single dependency-free <kbd>index.html</kbd>; all computation is client-side. Green/red highlighting follows the
+    paper's Figure&nbsp;1 convention. Publication notes: see <kbd>HOSTING.md</kbd>.
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ================= glossary ================= */
+const GLOSSARY={
+glossary:{t:"How to use this page",d:"Any dotted term — in prose or inside a formula — shows its definition on hover (tap on touch screens, Tab-focus with keyboard). Formula components carry the same definitions as their prose occurrences."},
+vocab:{t:"Vocabulary · tokens",d:"The fixed inventory of symbols a model emits — words or word fragments ('tokens'). Real vocabularies hold 50,000+ items; this demonstration uses an abstract set T00…T23 so color, not meaning, carries the information."},
+logits:{t:"Logits",d:"Unnormalized scores, one per vocabulary item, emitted by the model's final layer. They encode relative preference; the softmax converts them into probabilities. The watermark edits logits, never weights."},
+softmax:{t:"Softmax",d:"The map from scores to probabilities: exponentiate each logit and divide by the sum. It preserves ranking while translating additive shifts (like +δ) into multiplicative probability boosts of e^δ."},
+sampling:{t:"Multinomial sampling",d:"Drawing the next token at random with exactly the stated probabilities — the paper's default generation rule, and the one simulated here. Contrasts with greedy decoding (always the top token) and beam search (tracking several candidate sequences)."},
+greedy:{t:"Greedy decoding",d:"Always emitting the single most probable token. Deterministic and fast, but blind to the watermark unless combined with search — the paper shows beam search 'irons in' green-dense sequences."},
+beam:{t:"Beam search",d:"Keeping the B highest-scoring partial sequences at each step instead of one. Interacts synergistically with the soft rule: among near-equal candidates, greener sequences score higher and survive, raising detection at minimal quality cost (paper Fig. 2, right)."},
+green:{t:"Green list",d:"The pseudo-random subset of the vocabulary — fraction γ — favored at the current step. Membership is redrawn every step from the hash seed, so 'green' is a transient role, not a property of the token."},
+red:{t:"Red list",d:"The complement of the green list (fraction 1−γ). The hard rule forbids it outright; the soft rule merely leaves its logits unboosted. Under the null hypothesis, innocent text lands here with probability 1−γ per token."},
+prf:{t:"Hash / pseudorandom function",d:"A deterministic function whose outputs are indistinguishable from random. Seeding it with the preceding token(s) yields per-step partitions that generator and detector reproduce identically — no model, no transmitted key, no side channel. Deployments use keyed PRFs (e.g. seeded SHA/AES) over wider context windows."},
+gamma:{t:"γ — green-list fraction",d:"Share of the vocabulary colored green at each step (paper default 0.25). Sets the chance baseline γT that detection must beat. Smaller γ makes elevated green counts more surprising — hence slightly stronger detection per token."},
+delta:{t:"δ — hardness parameter",d:"Additive bias applied to green-list logits before the softmax (paper default 2.0, i.e. a ×e²≈7.4 odds boost per green token, modulated by competition). δ→∞ recovers the hard rule. The usable band is roughly 0.5–2.0."},
+sg:{t:"|s|_G — green count",d:"The number of generated tokens that fall on the green list applicable at their own position. The entire test statistic is a function of this single count — the detector's sufficient statistic."},
+T:{t:"T — scored length",d:"Number of tokens evaluated. Evidence scales with √T: doubling confidence at fixed strength requires roughly quadrupling length. Short passages are fundamentally hard to call."},
+ztest:{t:"One-proportion z-test",d:"Standard test of an observed success rate against a known baseline. Here it checks the green rate against γ. Under the null the statistic is approximately standard normal, which is what makes the p-value interpretable."},
+zstar:{t:"z* — detection threshold",d:"Cutoff above which text is declared watermarked (paper default 4.0). Encodes the operator's tolerance for false accusations: z*=4 admits roughly one false positive per 30,000 innocent passages."},
+h0:{t:"H₀ — null hypothesis",d:"'This text was produced with no knowledge of the green lists.' Rejecting H₀ means the green surplus is too extreme to plausibly be chance — not a proof of origin, but evidence calibrated by the p-value."},
+pvalue:{t:"p-value",d:"Under H₀, the probability of a green count at least as extreme as observed. p≈6×10⁻¹⁴ (the paper's Figure 1) means innocent text would look this skewed about once in ten trillion passages."},
+binomial:{t:"Binomial distribution",d:"The distribution of heads in T biased coin flips. Under H₀ each token is an independent trial with success probability γ, so |s|_G ∼ Binomial(T, γ): mean γT, variance Tγ(1−γ) — the two moments the z-statistic standardizes."},
+clt:{t:"Central limit theorem",d:"The reason the normal approximation is legitimate: sums of many independent contributions (here, per-token green indicators) converge to a Gaussian, here with the binomial's mean and variance."},
+fpr:{t:"Type-I error (false positive)",d:"Flagging innocent text as watermarked. Controlled directly by z*: for a standard normal, P(z>4)≈3×10⁻⁵. This is the error rate that governs deployment trust."},
+fnr:{t:"Type-II error (false negative)",d:"Missing genuinely watermarked text. Driven by short length, low entropy, small δ, or adversarial editing — the miss rate the paper's sensitivity analysis (§4.1) and panel D quantify empirically."},
+entropy:{t:"Entropy (predictive)",d:"Spread of the next-token distribution. High entropy: many live options, watermark hides freely. Low entropy: one near-certain token, watermarking is nearly impossible without visible damage. The soft rule's adaptivity tracks this automatically."},
+spike:{t:"Spike entropy",d:"Paper Definition 4.1: S(p,z)=∑ p_k/(1+z·p_k) — a soft count of tokens with non-trivial mass. Theorem 4.2 turns mean spike entropy into a lower bound on expected greens, formalizing 'high-entropy text watermarks easily'."},
+perplexity:{t:"Perplexity",d:"exp(mean negative log-likelihood) of text under a reference model — the standard quality proxy. Lower is more predictable. The paper measures watermark damage as excess perplexity under a larger oracle model (Theorem 4.3 bounds it)."},
+tv:{t:"Total variation distance",d:"Half the L₁ distance between two distributions — the largest probability shift the watermark induces on any event. Reported per step here as the abstract-distribution analogue of the paper's perplexity cost."}
+};
+const tip=document.getElementById("tip");
+let tipFor=null;
+function showTip(el){
+  const g=GLOSSARY[el.dataset.g];if(!g)return;
+  tip.innerHTML='<div class="tt">'+g.t+'</div><div>'+g.d+'</div>';
+  tip.style.display="block";
+  const r=el.getBoundingClientRect(),tw=tip.offsetWidth,th=tip.offsetHeight;
+  let x=Math.min(Math.max(8,r.left+r.width/2-tw/2),window.innerWidth-tw-8);
+  let y=r.top-th-10;if(y<8)y=r.bottom+10;
+  tip.style.left=x+"px";tip.style.top=y+"px";tipFor=el;
+}
+function hideTip(){tip.style.display="none";tipFor=null;}
+document.addEventListener("mouseover",e=>{const el=e.target.closest(".gl");if(el)showTip(el);});
+document.addEventListener("mouseout",e=>{if(e.target.closest&&e.target.closest(".gl"))hideTip();});
+document.addEventListener("focusin",e=>{const el=e.target.closest?e.target.closest(".gl"):null;if(el)showTip(el);});
+document.addEventListener("focusout",hideTip);
+document.addEventListener("click",e=>{const el=e.target.closest?e.target.closest(".gl"):null;
+  if(el&&(e.detail===0||"ontouchstart" in window)){tipFor===el&&tip.style.display==="block"?hideTip():showTip(el);}});
+window.addEventListener("scroll",hideTip,{passive:true});
+window.addEventListener("resize",hideTip);
+document.querySelectorAll(".gl").forEach(el=>{if(!el.hasAttribute("tabindex"))el.setAttribute("tabindex","0");});
+
+/* ============ generation engine (mirrors watermark_torch.py) ============ */
+const KEY=15485863;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hashSeed(prev){return (KEY^Math.imul((prev+1)|0,0x9E3779B1))>>>0;}
+function randperm(V,rng){const a=Array.from({length:V},(_,i)=>i);for(let i=V-1;i>0;i--){const j=Math.floor(rng()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function greenMask(prev,V,gamma){const rng=mulberry32(hashSeed(prev));const perm=randperm(V,rng);const k=Math.max(1,Math.floor(gamma*V));const m=new Array(V).fill(0);for(let i=0;i<k;i++)m[perm[i]]=1;return m;}
+function gauss(rng){let u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function softmax(l){const m=Math.max(...l);const e=l.map(x=>Math.exp(x-m));const s=e.reduce((a,b)=>a+b,0);return e.map(x=>x/s);}
+function sampleIdx(p,rng){let u=rng(),a=0;for(let i=0;i<p.length;i++){a+=p[i];if(u<a)return i;}return p.length-1;}
+function erf(x){const s=x<0?-1:1;x=Math.abs(x);const t=1/(1+0.3275911*x);const y=1-((((1.061405429*t-1.453152027)*t+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}
+function Phi(x){return 0.5*(1+erf(x/Math.SQRT2));}
+function fmtP(z){const p=1-Phi(z);if(z>8)return "≈ 6e-16 (floor)";if(p<=0)return "≈ 0";if(p<1e-3)return "≈ "+p.toExponential(1);return "≈ "+p.toFixed(4);}
+
+/* ============ state ============ */
+const S={mode:"soft",gamma:0.25,delta:2.0,zstar:4.0,T:80,V:24,entropy:"mixed",seed:7,
+         steps:[],revealed:1,cursor:1,playing:false,timer:null,trials:null};
+function stepKind(t){
+  if(S.entropy==="high")return "high";
+  if(S.entropy==="low")return "low";
+  return (t%2===0)?"high":"low";
+}
+function genSequence(seed){
+  const rng=mulberry32(seed^0xBEEF);
+  const steps=[];let prev=Math.floor(rng()*S.V);
+  for(let t=0;t<S.T;t++){
+    const kind=stepKind(t);
+    const logits=new Array(S.V);
+    if(kind==="high"){for(let i=0;i<S.V;i++)logits[i]=gauss(rng);}
+    else{for(let i=0;i<S.V;i++)logits[i]=gauss(rng)*0.5;logits[Math.floor(rng()*S.V)]+=4.0;}
+    const mask=greenMask(prev,S.V,S.gamma);
+    const base=softmax(logits);
+    let wm;
+    if(S.mode==="off"){wm=base;}
+    else if(S.mode==="hard"){wm=softmax(logits.map((x,i)=>mask[i]?x:-1e9));}
+    else{wm=softmax(logits.map((x,i)=>x+S.delta*mask[i]));}
+    const tok=sampleIdx(wm,rng);
+    let tv=0;for(let i=0;i<S.V;i++)tv+=Math.abs(wm[i]-base[i]);tv/=2;
+    const d=S.mode==="hard"?5:(S.delta||2);
+    const alpha=Math.exp(d),mod=(1-S.gamma)*(alpha-1)/(1+(alpha-1)*S.gamma);
+    let spike=0;for(let i=0;i<S.V;i++)spike+=base[i]/(1+mod*base[i]);
+    steps.push({logits,base,wm,mask,tok,green:mask[tok]===1,tv,spike,kind,prev});
+    prev=tok;
+  }
+  return steps;
+}
+function countGreens(steps,n){let g=0;for(let i=0;i<n;i++)g+=steps[i].green?1:0;return g;}
+function zOf(g,T){return (g-S.gamma*T)/Math.sqrt(T*S.gamma*(1-S.gamma));}
+function regenerate(playFromStart){
+  S.steps=genSequence(S.seed);
+  S.revealed=playFromStart?1:S.T;
+  S.cursor=1;
+  stopPlay();
+  document.getElementById("in-cursor").max=S.T;
+  document.getElementById("o-cursor").textContent="1 / "+S.T;
+  runTrials();
+  renderAll();
+}
+function trialGreens(seed,mode){
+  const rng=mulberry32(seed);let prev=Math.floor(rng()*S.V),g=0;
+  for(let t=0;t<S.T;t++){
+    const kind=S.entropy==="high"?"high":(S.entropy==="low"?"low":((t%2===0)?"high":"low"));
+    const logits=new Array(S.V);
+    if(kind==="high")for(let i=0;i<S.V;i++)logits[i]=gauss(rng);
+    else{for(let i=0;i<S.V;i++)logits[i]=gauss(rng)*0.5;logits[Math.floor(rng()*S.V)]+=4.0;}
+    const mask=greenMask(prev,S.V,S.gamma);
+    const base=softmax(logits);let p;
+    if(mode==="off")p=base;
+    else if(mode==="hard")p=softmax(logits.map((x,i)=>mask[i]?x:-1e9));
+    else p=softmax(logits.map((x,i)=>x+S.delta*mask[i]));
+    const tok=sampleIdx(p,rng);g+=mask[tok];prev=tok;
+  }
+  return g;
+}
+function runTrials(){
+  const N=400,off=[],wm=[];
+  for(let i=0;i<N;i++){off.push(trialGreens(1000033+i*7919,"off"));wm.push(trialGreens(1000033+i*7919,S.mode));}
+  let tvSum=0;for(let i=0;i<S.steps.length;i++)tvSum+=S.steps[i].tv;
+  S.trials={off,wm,avgTV:S.mode==="off"?0:tvSum/S.steps.length};
+  const cstar=S.gamma*S.T+S.zstar*Math.sqrt(S.T*S.gamma*(1-S.gamma));
+  const fpr=off.filter(g=>zOf(g,S.T)>=S.zstar).length/N;
+  const tpr=wm.filter(g=>zOf(g,S.T)>=S.zstar).length/N;
+  document.getElementById("t-fpr").textContent=(fpr*100).toFixed(1)+"%";
+  document.getElementById("t-tpr").textContent=(tpr*100).toFixed(1)+"%";
+  document.getElementById("t-wmrate").textContent=(wm.reduce((a,b)=>a+b,0)/N/S.T).toFixed(3);
+  document.getElementById("t-avgtv").textContent=S.mode==="off"?"0 (off)":S.trials.avgTV.toFixed(3);
+  document.getElementById("trials-note").textContent="N=400 per condition · detection requires ≥ "+cstar.toFixed(1)+" greens at z*="+S.zstar.toFixed(1);
+}
+
+/* ============ canvas helpers ============ */
+function ctx2d(id){const c=document.getElementById(id);const h=+(c.dataset.h||220);const dpr=window.devicePixelRatio||1;
+  const w=c.clientWidth||c.parentElement.clientWidth||800;
+  c.width=w*dpr;c.height=h*dpr;c.style.height=h+"px";
+  const x=c.getContext("2d");x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,w,h);return[x,w,h];}
+const C={green:"#0d6b38",greenFill:"rgba(13,107,56,.75)",red:"#a1231b",redFill:"rgba(161,35,27,.72)",
+  ink:"#1d1a16",grid:"#e6dfd1",thr:"#0a5229"};
+function tokName(i){return "T"+String(i).padStart(2,"0");}
+
+function drawLogits(){
+  const st=S.steps[S.cursor-1];if(!st)return;
+  const[x,W,H]=ctx2d("ch-logits");
+  const pad={l:34,r:10,t:22,b:26},iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  const mx=Math.max(...st.wm,...st.base)*1.12||1;
+  const bw=iw/S.V;
+  x.font="10px ui-monospace,monospace";
+  x.strokeStyle=C.grid;x.fillStyle="#8a8478";x.lineWidth=1;
+  for(let g=0;g<=4;g++){const y=pad.t+ih-(ih*g/4);x.beginPath();x.moveTo(pad.l,y);x.lineTo(W-pad.r,y);x.stroke();
+    x.fillText((mx*g/4).toFixed(2),4,y+3);}
+  for(let i=0;i<S.V;i++){
+    const h=st.wm[i]/mx*ih,bx=pad.l+i*bw+1,by=pad.t+ih-h;
+    x.fillStyle=st.mask[i]?C.greenFill:C.redFill;
+    x.fillRect(bx,by,Math.max(1,bw-2),h);
+    if(st.tok===i){x.strokeStyle=C.ink;x.lineWidth=2;x.strokeRect(bx-1,by-1,Math.max(1,bw-2)+2,h+2);}
+    const ty=pad.t+ih-st.base[i]/mx*ih;
+    x.strokeStyle="#1d1a16";x.lineWidth=Math.min(3,Math.max(1.5,bw*0.28));
+    x.beginPath();x.moveTo(bx,ty);x.lineTo(bx+Math.max(1,bw-2),ty);x.stroke();
+    if(S.V<=24||i%2===0){x.fillStyle=st.mask[i]?C.green:C.red;x.fillText(tokName(i),bx,H-8);}
+  }
+  x.fillStyle="#6f6a60";x.font="11px -apple-system,sans-serif";
+  x.fillText("bars = post-watermark distribution p̂   — ticks = pre-watermark p   ▢ = sampled "+tokName(st.tok),pad.l,12);
+  const order=st.wm.map((p,i)=>i).sort((a,b)=>st.wm[b]-st.wm[a]).slice(0,5);
+  document.querySelector("#tbl-top tbody").innerHTML=order.map(i=>
+    `<tr><td>T${String(i).padStart(2,"0")}${st.tok===i?" ◀":""}</td><td style="color:${st.mask[i]?C.green:C.red};font-weight:700">${st.mask[i]?"green":"red"}</td><td>${st.base[i].toFixed(3)}</td><td><b>${st.wm[i].toFixed(3)}</b></td></tr>`).join("");
+  let gm=0;for(let i=0;i<S.V;i++)gm+=st.mask[i]*st.base[i];
+  let gm2=0;for(let i=0;i<S.V;i++)gm2+=st.mask[i]*st.wm[i];
+  const rows=[
+    ["seeded by preceding token",tokName(st.prev)+" → hash → "+st.mask.filter(Boolean).length+" green / "+S.V],
+    ["distribution regime",st.kind+" entropy"+(S.mode==="soft"?(st.kind==="low"?" — δ has little purchase":" — δ is decisive"):"")],
+    ["green mass p(G)→p̂(G)",gm.toFixed(3)+" → "+gm2.toFixed(3)],
+    ["sampled token",tokName(st.tok)+" ("+(st.green?"green":"red")+")"],
+    ["TV distance ‖p̂−p‖",S.mode==="off"?"0 (unwatermarked)":st.tv.toFixed(3)]
+  ];
+  document.querySelector("#tbl-step tbody").innerHTML=rows.map(r=>`<tr><td style="color:var(--muted)">${r[0]}</td><td><b>${r[1]}</b></td></tr>`).join("");
+  document.getElementById("spike-note").textContent="Spike entropy at this step: "+st.spike.toFixed(2)+" — the paper's soft count of viable options (Definition 4.1). Elevated values mark positions where the +δ adjustment determines the outcome; depressed values mark positions it correctly leaves alone.";
+  const ms=document.getElementById("matrixstrip");
+  ms.innerHTML=S.mode==="hard"?"sampling restricted to <b class='g'>G</b> — red logits → −∞ (Algorithm 1)"
+    :S.mode==="off"?"p̂ = p — watermark disabled (null behavior)":"ℓ̂ = ℓ + <b>"+S.delta.toFixed(2)+"</b>·𝟙<sub class='g'>G</sub> → p̂ = softmax(ℓ̂) — green mass "+gm.toFixed(2)+" → <b>"+gm2.toFixed(2)+"</b>";
+}
+
+function drawSeq(){
+  const el=document.getElementById("seq");el.innerHTML="";
+  S.steps.forEach((st,i)=>{
+    const b=document.createElement("button");
+    b.className="tok "+(st.green?"g":"r")+((i+1)>S.revealed?" future":"")+((i+1)===S.cursor?" cur":"");
+    b.textContent=(i+1)>S.revealed?"·":tokName(st.tok);
+    b.setAttribute("aria-label","step "+(i+1)+": "+tokName(st.tok)+", "+(st.green?"green":"red"));
+    b.onclick=()=>{S.cursor=i+1;if(S.cursor>S.revealed)S.revealed=S.cursor;renderAll();};
+    el.appendChild(b);
+  });
+}
+
+function drawDetect(){
+  const n=S.revealed,g=countGreens(S.steps,n),z=zOf(g,n);
+  document.getElementById("t-T").textContent=n;
+  document.getElementById("t-G").textContent=g;
+  document.getElementById("t-Gexp").textContent="expected "+(S.gamma*n).toFixed(1);
+  document.getElementById("t-rate").textContent=(g/n).toFixed(3);
+  document.getElementById("t-rateexp").textContent="baseline "+S.gamma.toFixed(2);
+  const ze=document.getElementById("t-z");ze.textContent=(z>=0?"+":"")+z.toFixed(2);
+  ze.style.color=z>=S.zstar?C.green:(z>=2?"#8a6d1a":C.red);
+  document.getElementById("t-p").textContent=fmtP(z);
+  document.getElementById("t-tv").textContent=S.mode==="off"?"0 (off)":(S.steps.slice(0,n).reduce((a,s)=>a+s.tv,0)/n).toFixed(3);
+  const det=z>=S.zstar,v=document.getElementById("verdict");
+  v.className="verdict "+(det?"yes":"no");
+  document.getElementById("verdict-word").textContent=det?"WATERMARK DETECTED":"NOT DETECTED";
+  document.getElementById("verdict-why").textContent=det
+    ?"— z = "+z.toFixed(2)+" ≥ "+S.zstar.toFixed(1)+"; unwatermarked text clears this threshold with probability "+fmtP(S.zstar).replace("≈ ","")+"."
+    :"— z = "+z.toFixed(2)+" < "+S.zstar.toFixed(1)+". Extend the passage, increase δ, or lower z* (accepting additional false positives).";
+  {const[x,W,H]=ctx2d("ch-traj");const pad={l:36,r:12,t:12,b:24},iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+   let zs=[],cum=0;for(let t=1;t<=S.T;t++){cum+=S.steps[t-1].green?1:0;zs.push(zOf(cum,t));}
+   const lo=Math.min(-1,...zs,S.zstar)-0.5,hi=Math.max(5,...zs,S.zstar)+0.5;
+   const X=t=>pad.l+iw*(t-1)/(S.T-1||1),Y=z=>pad.t+ih*(1-(z-lo)/(hi-lo));
+   x.fillStyle="rgba(13,107,56,.10)";x.fillRect(pad.l,pad.t,iw,Y(S.zstar)-pad.t);
+   x.strokeStyle=C.grid;for(let gi=0;gi<=4;gi++){const y=pad.t+ih*gi/4;x.beginPath();x.moveTo(pad.l,y);x.lineTo(W-pad.r,y);x.stroke();}
+   const zy=Y(S.zstar);x.strokeStyle=C.thr;x.setLineDash([6,4]);x.lineWidth=1.5;
+   x.beginPath();x.moveTo(pad.l,zy);x.lineTo(W-pad.r,zy);x.stroke();x.setLineDash([]);
+   x.fillStyle=C.thr;x.font="11px ui-monospace,monospace";x.fillText("z*="+S.zstar.toFixed(1),W-pad.r-52,zy-5);
+   const zy0=Y(0);x.strokeStyle="#b9b2a2";x.beginPath();x.moveTo(pad.l,zy0);x.lineTo(W-pad.r,zy0);x.stroke();
+   x.lineWidth=2;x.strokeStyle=S.mode==="off"?"#6f6a60":(S.mode==="hard"?C.red:C.green);
+   x.beginPath();for(let t=1;t<=S.T;t++){const px=X(t),py=Y(zs[t-1]);t===1?x.moveTo(px,py):x.lineTo(px,py);}x.stroke();
+   x.fillStyle="rgba(250,248,243,.72)";x.fillRect(X(n)+1,pad.t,W-pad.r-X(n),ih);
+   x.fillStyle=C.ink;x.beginPath();x.arc(X(n),Y(zs[n-1]),3.5,0,7);x.fill();
+   x.fillStyle="#8a8478";x.font="10px ui-monospace,monospace";
+   x.fillText("1",pad.l,H-8);x.fillText("T="+S.T,W-pad.r-34,H-8);x.fillText("z",6,pad.t+8);}
+  {const[x,W,H]=ctx2d("ch-null");const pad={l:36,r:12,t:12,b:24},iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+   const lo=-4,hi=8,X=vv=>pad.l+iw*(vv-lo)/(hi-lo);
+   const pdf=vv=>Math.exp(-vv*vv/2)/Math.sqrt(2*Math.PI),my=pdf(0);
+   const Y=p=>pad.t+ih*(1-p/my);
+   x.fillStyle="rgba(13,107,56,.16)";x.beginPath();x.moveTo(X(S.zstar),Y(0));
+   for(let vv=S.zstar;vv<=hi;vv+=0.05)x.lineTo(X(vv),Y(pdf(vv)));x.lineTo(X(hi),Y(0));x.closePath();x.fill();
+   x.lineWidth=2;x.strokeStyle="#3d3830";x.beginPath();
+   for(let vv=lo;vv<=hi;vv+=0.05){const px=X(vv),py=Y(pdf(vv));vv===lo?x.moveTo(px,py):x.lineTo(px,py);}x.stroke();
+   x.strokeStyle=C.grid;x.beginPath();x.moveTo(pad.l,Y(0));x.lineTo(W-pad.r,Y(0));x.stroke();
+   const zx=X(Math.min(hi,Math.max(lo,z)));
+   x.strokeStyle=z>=S.zstar?C.green:C.red;x.lineWidth=2.5;x.beginPath();x.moveTo(zx,pad.t);x.lineTo(zx,Y(0));x.stroke();
+   x.fillStyle=x.strokeStyle;x.font="bold 11px ui-monospace,monospace";
+   x.fillText("z="+z.toFixed(1),Math.min(zx+5,W-64),pad.t+12);
+   x.fillStyle="#8a8478";x.font="10px ui-monospace,monospace";
+   x.fillText(lo,pad.l,H-8);x.fillText("0",X(0)-3,H-8);x.fillText("z*="+S.zstar.toFixed(1),X(S.zstar)-14,H-8);}
+}
+
+function drawHist(){
+  const[x,W,H]=ctx2d("ch-hist");const pad={l:36,r:12,t:26,b:24},iw=W-pad.l-pad.r,ih=H-pad.t-pad.b;
+  const off=S.trials.off,wm=S.trials.wm;
+  const lo=Math.min(...off,...wm),hi=Math.max(...off,...wm);
+  const B=Math.min(26,hi-lo+1),binsO=new Array(B).fill(0),binsW=new Array(B).fill(0);
+  off.forEach(g=>binsO[Math.min(B-1,Math.floor((g-lo)/(hi-lo+1)*B))]++);
+  wm.forEach(g=>binsW[Math.min(B-1,Math.floor((g-lo)/(hi-lo+1)*B))]++);
+  const mx=Math.max(...binsO,...binsW);
+  const bw=iw/B;
+  const cstar=S.gamma*S.T+S.zstar*Math.sqrt(S.T*S.gamma*(1-S.gamma));
+  for(let i=0;i<B;i++){
+    const hO=binsO[i]/mx*ih,hW=binsW[i]/mx*ih,bx=pad.l+i*bw;
+    x.fillStyle="rgba(110,105,95,.55)";x.fillRect(bx+1,pad.t+ih-hO,bw-2,hO);
+    x.fillStyle=S.mode==="hard"?"rgba(161,35,27,.65)":"rgba(13,107,56,.6)";
+    x.fillRect(bx+1,pad.t+ih-hW,bw-2,hW);
+  }
+  const cx=pad.l+iw*(cstar-lo)/(hi-lo+1);
+  x.strokeStyle=C.ink;x.setLineDash([6,4]);x.lineWidth=1.5;
+  x.beginPath();x.moveTo(cx,pad.t);x.lineTo(cx,pad.t+ih);x.stroke();x.setLineDash([]);
+  x.fillStyle=C.ink;x.font="11px ui-monospace,monospace";x.fillText("detect ≥ "+cstar.toFixed(0),Math.min(cx+5,W-110),pad.t+2);
+  x.fillStyle="#6f6a60";x.font="12px -apple-system,sans-serif";
+  x.fillText("■ unwatermarked",pad.l,14);x.fillStyle=S.mode==="hard"?C.red:C.green;
+  x.fillText("■ "+S.mode+" (current settings)",pad.l+140,14);
+  x.fillStyle="#8a8478";x.font="10px ui-monospace,monospace";
+  x.fillText(lo+" greens",pad.l,H-8);x.fillText(hi+" greens",W-pad.r-64,H-8);
+}
+
+function renderAll(){drawLogits();drawSeq();drawDetect();drawHist();}
+
+/* ============ controls ============ */
+function bind(){
+  const seg=[...document.querySelectorAll(".seg button")];
+  seg.forEach(b=>b.onclick=()=>{S.mode=b.dataset.m;
+    seg.forEach(o=>o.setAttribute("aria-pressed",o===b?"true":"false"));
+    document.getElementById("row-delta").classList.toggle("disabled",S.mode!=="soft");
+    regenerate(false);});
+  seg.forEach(o=>o.setAttribute("aria-pressed",o.dataset.m===S.mode?"true":"false"));
+  const link=(id,out,fn,fmt)=>{const el=document.getElementById(id);
+    el.oninput=()=>{document.getElementById(out).textContent=fmt(+el.value);fn(+el.value);};};
+  link("in-gamma","o-gamma",v=>{S.gamma=v;regenerate(false);},v=>v.toFixed(2));
+  link("in-delta","o-delta",v=>{S.delta=v;regenerate(false);},v=>v.toFixed(2));
+  link("in-zstar","o-zstar",v=>{S.zstar=v;runTrials();renderAll();},v=>v.toFixed(1));
+  link("in-T","o-T",v=>{S.T=v;regenerate(false);},v=>v);
+  link("in-cursor","o-cursor",v=>{S.cursor=Math.min(v,S.revealed);document.getElementById("o-cursor").textContent=S.cursor+" / "+S.T;renderAll();},v=>v+" / "+S.T);
+  document.getElementById("in-V").onchange=e=>{S.V=+e.target.value;regenerate(false);};
+  document.getElementById("in-ent").onchange=e=>{S.entropy=e.target.value;regenerate(false);};
+  document.getElementById("regen").onclick=()=>regenerate(false);
+  document.getElementById("run-trials").onclick=()=>{runTrials();drawHist();};
+  const setSeed=v=>{S.seed=v>>>0;document.getElementById("o-seed").textContent=S.seed;regenerate(true);};
+  document.getElementById("seed-inc").onclick=()=>setSeed(S.seed+1);
+  document.getElementById("seed-dec").onclick=()=>setSeed(S.seed-1);
+  document.getElementById("seed-rnd").onclick=()=>setSeed(Math.floor(Math.random()*1e6));
+  document.getElementById("step").onclick=()=>{stopPlay();if(S.revealed<S.T){S.revealed++;S.cursor=S.revealed;syncCursor();renderAll();}};
+  document.getElementById("play").onclick=togglePlay;
+  window.addEventListener("resize",()=>renderAll());
+}
+function syncCursor(){const c=document.getElementById("in-cursor");c.max=S.T;c.value=S.cursor;
+  document.getElementById("o-cursor").textContent=S.cursor+" / "+S.T;}
+function togglePlay(){
+  const b=document.getElementById("play");
+  if(S.playing){stopPlay();return;}
+  if(S.revealed>=S.T){S.revealed=1;S.cursor=1;}
+  S.playing=true;b.textContent="⏸ Pause";
+  S.timer=setInterval(()=>{
+    if(S.revealed>=S.T){stopPlay();return;}
+    S.revealed++;S.cursor=S.revealed;syncCursor();renderAll();
+  },140);
+}
+function stopPlay(){S.playing=false;clearInterval(S.timer);document.getElementById("play").textContent="▶ Play";}
+
+bind();regenerate(true);
+</script>
+</body>
+</html>
